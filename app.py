@@ -22,9 +22,9 @@ def load_artifacts():
 
 model, scaler, feature_names = load_artifacts()
 
-st.title("🛡️ Predictive Threat Detection & Automated Remediation System")
-st.markdown("**Deep Learning-Based DDoS Attack Detection using CICIDS2017 Dataset**")
-st.markdown("*Final Year Project — Elizabeth Emili & Partner*")
+st.title("Predictive Threat Detection & Automated Remediation System")
+st.markdown("**Deep Learning-Based DDoS Attack Detection & Remediation using CICIDS2017 Dataset**")
+st.markdown("*Final Year Project — Elizabeth Emili & Ankara Job*")
 st.divider()
 
 with st.sidebar:
@@ -34,15 +34,15 @@ with st.sidebar:
     CICIDS2017 dataset to detect DDoS attacks in real time 
     and automatically trigger remediation actions:
     
-    🔴 **IP Blocking** — blocks malicious source  
-    🟡 **Rate Limiting** — throttles suspicious traffic  
-    🔔 **Alert Generation** — notifies administrators
+    🔴 **IP Blocking** : blocks malicious source  
+    🟡 **Rate Limiting** : throttles suspicious traffic  
+    🔔 **Alert Generation** : notifies administrators
     """)
     st.metric("Model Accuracy", "99%+")
     st.metric("Dataset", "CICIDS2017")
     st.metric("Architecture", "Deep Neural Network")
 
-st.subheader("🔍 Enter Network Flow Features")
+st.subheader("Enter Network Flow Features")
 st.markdown("Fill in the traffic flow details below to check for a DDoS attack.")
 
 col1, col2, col3 = st.columns(3)
@@ -62,7 +62,7 @@ with col3:
     source_ip        = st.text_input("Source IP Address",           value="192.168.1.100")
     threshold        = st.slider("Detection Threshold", 0.1, 0.9, 0.5, 0.05)
 
-if st.button("🔍 ANALYSE TRAFFIC FLOW", type="primary", use_container_width=True):
+if st.button("ANALYSE TRAFFIC FLOW", type="primary", use_container_width=True):
 
     input_vector = np.zeros((1, len(feature_names)))
     key_values = {
