@@ -24,7 +24,7 @@ model, scaler, feature_names = load_artifacts()
 
 st.title("Predictive Threat Detection & Automated Remediation System")
 st.markdown("**Deep Learning-Based DDoS Attack Detection & Remediation using CICIDS2017 Dataset**")
-st.markdown("*Final Year Project — Elizabeth Emili & Ankara Job*")
+st.markdown("*Final Year Project : Elizabeth Emili & Ankara Job*")
 st.divider()
 
 with st.sidebar:
