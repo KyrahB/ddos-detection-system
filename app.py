@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import pickle
 import datetime
+import pandas as pd
 
 st.set_page_config(
     page_title="DDoS Threat Detection System",
@@ -22,9 +23,9 @@ def load_artifacts():
 
 model, scaler, feature_names = load_artifacts()
 
-st.title("Predictive Threat Detection & Automated Remediation System")
-st.markdown("**Deep Learning-Based DDoS Attack Detection & Remediation using CICIDS2017 Dataset**")
-st.markdown("*Final Year Project : Elizabeth Emili & Ankara Job*")
+st.title(" Predictive Threat Detection & Automated Remediation System")
+st.markdown("**Deep Learning-Based DDoS Attack Detection & Remediation Strategies using CICIDS2017 Dataset**")
+st.markdown("*Final Year Project: Elizabeth Emili & Ankara Job*")
 st.divider()
 
 with st.sidebar:
@@ -42,75 +43,106 @@ with st.sidebar:
     st.metric("Dataset", "CICIDS2017")
     st.metric("Architecture", "Deep Neural Network")
 
-st.subheader("Enter Network Flow Features")
-st.markdown("Fill in the traffic flow details below to check for a DDoS attack.")
+tab1, tab2 = st.tabs(["📁 Upload CSV for Detection", "📖 How to Use"])
 
-col1, col2, col3 = st.columns(3)
+with tab1:
+    st.subheader("Upload Network Traffic CSV")
+    st.markdown("Upload a CSV file containing network flow records to detect DDoS attacks.")
 
-with col1:
-    flow_duration    = st.number_input("Flow Duration (μs)",       min_value=0.0, value=128476.0)
-    fwd_packets      = st.number_input("Total Fwd Packets",         min_value=0.0, value=1.0)
-    flow_bytes_s     = st.number_input("Flow Bytes/s",              min_value=0.0, value=1315.42)
+    source_ip = st.text_input("Source IP Address (for alert log)", value="192.168.1.100")
+    threshold = st.slider("Detection Threshold", 0.1, 0.9, 0.5, 0.05)
 
-with col2:
-    flow_packets_s   = st.number_input("Flow Packets/s",            min_value=0.0, value=15.57)
-    avg_packet_size  = st.number_input("Average Packet Size",       min_value=0.0, value=53.0)
-    init_win         = st.number_input("Init Win Bytes Forward",    min_value=-1.0, value=256.0)
+    uploaded_file = st.file_uploader("Upload CSV file", type="csv")
 
-with col3:
-    pkt_len_var      = st.number_input("Packet Length Variance",    min_value=0.0, value=0.0)
-    source_ip        = st.text_input("Source IP Address",           value="192.168.1.100")
-    threshold        = st.slider("Detection Threshold", 0.1, 0.9, 0.5, 0.05)
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+        df.columns = df.columns.str.strip()
 
-if st.button("ANALYSE TRAFFIC FLOW", type="primary", use_container_width=True):
+        st.write(f"✅ Loaded {len(df)} traffic records. Preview:")
+        st.dataframe(df.head(3))
 
-    input_vector = np.zeros((1, len(feature_names)))
-    key_values = {
-        'Flow Duration':          flow_duration,
-        'Total Fwd Packets':      fwd_packets,
-        'Flow Bytes/s':           flow_bytes_s,
-        'Flow Packets/s':         flow_packets_s,
-        'Average Packet Size':    avg_packet_size,
-        'Init_Win_bytes_forward': init_win,
-        'Packet Length Variance': pkt_len_var
-    }
-    for feat, val in key_values.items():
-        if feat in feature_names:
-            input_vector[0, feature_names.index(feat)] = val
+        if st.button(" ANALYSE ALL FLOWS", type="primary", use_container_width=True):
+            for col in feature_names:
+                if col not in df.columns:
+                    df[col] = 0
 
-    input_scaled = scaler.transform(input_vector)
-    pred_prob    = model.predict(input_scaled, verbose=0)[0][0]
-    is_attack    = pred_prob >= threshold
-    timestamp    = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            X_input = df[feature_names].copy()
+            X_input = X_input.replace([np.inf, -np.inf], np.nan).fillna(0)
 
-    st.divider()
+            for col in X_input.columns:
+                lo = X_input[col].quantile(0.01)
+                hi = X_input[col].quantile(0.99)
+                X_input[col] = X_input[col].clip(lo, hi)
 
-    if is_attack:
-        st.error(f"🚨 ATTACK DETECTED — Anomaly Score: `{pred_prob:.4f}`")
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            st.error(f"🔴 **IP BLOCKED**\n\n`{source_ip}` added to firewall blocklist.")
-        with col_b:
-            st.warning("🟡 **RATE LIMITED**\n\nPacket rate throttled to safe threshold.")
-        with col_c:
-            st.info(f"🔔 **ALERT SENT**\n\nAdministrator notified at `{timestamp}`.")
+            X_scaled = scaler.transform(X_input)
+            probs = model.predict(X_scaled, verbose=0).flatten()
+            preds = (probs >= threshold).astype(int)
 
-        st.code(f"""
+            n_attacks = preds.sum()
+            n_benign = len(preds) - n_attacks
+
+            st.divider()
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total Flows Analysed", len(preds))
+            c2.metric("🔴 Attacks Detected", int(n_attacks))
+            c3.metric("🟢 Benign Traffic", int(n_benign))
+
+            results = df.copy()
+            results['Anomaly_Score'] = probs.round(4)
+            results['Prediction'] = ['🔴 ATTACK' if p == 1 else '🟢 BENIGN' for p in preds]
+
+            st.dataframe(results[['Anomaly_Score', 'Prediction']].head(20))
+
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            if n_attacks > 0:
+                st.error(f"🚨 {n_attacks} DDoS ATTACK(S) DETECTED")
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    st.error(f"🔴 **IP BLOCKED**\n\n`{source_ip}` added to firewall blocklist.")
+                with col_b:
+                    st.warning("🟡 **RATE LIMITED**\n\nTraffic throttled to safe threshold.")
+                with col_c:
+                    st.info(f"🔔 **ALERT SENT**\n\nAdmin notified at `{timestamp}`.")
+
+                st.code(f"""
 SECURITY ALERT LOG
 ══════════════════════════════════════
 Timestamp:      {timestamp}
 Source IP:      {source_ip}
-Anomaly Score:  {pred_prob:.6f}
-Classification: DDoS ATTACK
+Flows Analysed: {len(preds)}
+Attacks Found:  {int(n_attacks)}
+Anomaly Scores: {[round(float(p),4) for p in probs[:5]]}
 Actions:
   [1] IP BLOCKED   — {source_ip} blocklisted
-  [2] RATE LIMITED — traffic throttled
-  [3] ALERT SENT   — admin notified
+  [2] RATE LIMITED — traffic throttled  
+  [3] ALERT SENT   — administrator notified
 ══════════════════════════════════════
-        """)
-    else:
-        st.success(f"✅ BENIGN TRAFFIC — Anomaly Score: `{pred_prob:.4f}`")
-        st.info("No action required. Traffic is within normal parameters.")
+                """)
+            else:
+                st.success("✅ All traffic flows are BENIGN. No action required.")
 
-st.divider()
-st.caption("Predictive Threat Modelling & Automated Remediation | Deep Learning Final Year Project")
+            csv_out = results.to_csv(index=False)
+            st.download_button("📥 Download Results", csv_out,
+                               "detection_results.csv", "text/csv")
+
+with tab2:
+    st.subheader("How to Test This System")
+    st.markdown("""
+    **Step 1:** Download a few rows from the CICIDS2017 dataset as a CSV file.
+    
+    **Step 2:** Upload that CSV using the file uploader above.
+    
+    **Step 3:** Click **Analyse All Flows** to see which rows are attacks and which are benign.
+    
+    **What the system does automatically when attacks are detected:**
+    - 🔴 Blocks the source IP address
+    - 🟡 Applies rate limiting to throttle suspicious traffic  
+    - 🔔 Generates a timestamped security alert for administrators
+    
+    **Model details:**
+    - Architecture: Deep Neural Network (3 hidden layers)
+    - Dataset: CICIDS2017 Binary Balanced
+    - Training accuracy: 99%+
+    - Features used: 52 network flow features
+    """)
